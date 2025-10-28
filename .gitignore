@@ -1,0 +1,6 @@
+__pycache__/
+.DS_Store
+#.env contains secrets (RTSP URL, credentials). Keep it out of git.
+.env
+logs/
+recordings/
