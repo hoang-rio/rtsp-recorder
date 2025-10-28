@@ -67,3 +67,6 @@ OUTPUT_FORMAT = os.environ.get('OUTPUT_FORMAT', 'mp4')
 # HW_ACCELERATION: treat empty string as None
 _hw = os.environ.get('HW_ACCELERATION', '')
 HW_ACCELERATION = _hw if _hw else None
+
+# RTSP transport option: set to 'tcp', 'udp', or leave empty to omit
+RTSP_TRANSPORT = os.environ.get('RTSP_TRANSPORT', '')

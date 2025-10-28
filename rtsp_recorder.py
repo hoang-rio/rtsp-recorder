@@ -7,6 +7,7 @@ import signal
 import logging
 from logging.handlers import RotatingFileHandler
 import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 import config
@@ -75,11 +76,16 @@ class RTSPRecorder:
         command = [
             config.FFMPEG_BINARY,
             '-y',  # Overwrite output files
-            # '-rtsp_transport', 'tcp',  # Use TCP for RTSP (more stable)
-            '-re',
+        ]
+
+        # Add RTSP transport if configured (must come before -i)
+        if getattr(config, 'RTSP_TRANSPORT', ''):
+            command.extend(['-rtsp_transport', config.RTSP_TRANSPORT])
+
+        command.extend([
             '-hide_banner',
             '-i', config.RTSP_URL,
-        ]
+        ])
 
         # Add hardware acceleration if configured
         if config.HW_ACCELERATION:
@@ -138,32 +144,86 @@ class RTSPRecorder:
                 f"filename pattern: {os.path.basename(output_pattern)} | "
                 f"first segment example: {example_path}"
             )
+            def _stream_ffmpeg_stderr(proc):
+                """Continuously read FFmpeg stderr and log it to the logger.
+
+                This prevents the stderr buffer from filling and blocking the
+                FFmpeg process. Runs in a daemon thread.
+                """
+                try:
+                    for raw in iter(proc.stderr.readline, b''):
+                        if not raw:
+                            break
+                        try:
+                            line = raw.decode(errors='replace').rstrip()
+                        except Exception:
+                            line = str(raw)
+                        # Log FFmpeg output as DEBUG to keep main logs cleaner,
+                        # but include as INFO if you prefer.
+                        self.logger.debug(f"ffmpeg: {line}")
+                except Exception as e:
+                    self.logger.debug(f"stderr reader stopped: {e}")
+
             try:
+                # start ffmpeg process; send stdout to DEVNULL to avoid buffering
                 self.process = subprocess.Popen(
                     command,
-                    stdout=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE
                 )
 
-                # Wait for the process to complete or be interrupted
-                self.process.wait()
+                # start background thread to drain stderr
+                t = threading.Thread(target=_stream_ffmpeg_stderr, args=(self.process,), daemon=True)
+                t.start()
 
-                # Read stderr for logging/debugging
-                try:
-                    stderr = self.process.stderr.read().decode()
-                except Exception:
-                    stderr = ''
-
-                # If FFmpeg failed (non-zero return) and we are still running,
-                # delete any newly-created segment files and retry after a delay.
-                if self.process.returncode != 0:
-                    self.logger.error(f"FFmpeg process failed (rc={self.process.returncode}): {stderr}")
-
+                # Short startup check: ensure at least one segment file appears
+                # within STARTUP_TIMEOUT seconds, otherwise assume ffmpeg is
+                # stuck and restart.
+                STARTUP_TIMEOUT = 20
+                started_ok = False
+                for _ in range(STARTUP_TIMEOUT):
                     try:
                         after_files = set(os.listdir(dated_dir))
                     except FileNotFoundError:
                         after_files = set()
 
+                    new_files = after_files - before_files
+                    if any(f.startswith('recording_') and f.endswith(f'.{config.OUTPUT_FORMAT}') for f in new_files):
+                        started_ok = True
+                        break
+                    # if process has exited quickly, break and handle below
+                    if self.process.poll() is not None:
+                        break
+                    time.sleep(1)
+
+                if not started_ok:
+                    # Either no files were created or process exited early.
+                    rc = self.process.poll()
+                    try:
+                        # attempt to read a small portion of stderr by terminating
+                        # after a short wait to let ffmpeg flush messages
+                        time.sleep(0.1)
+                    except Exception:
+                        pass
+                    if rc is None:
+                        # process still running but no output -> kill and restart
+                        self.logger.warning("FFmpeg started but produced no segments within timeout; restarting")
+                        try:
+                            self.process.terminate()
+                            self.process.wait(timeout=2)
+                        except Exception:
+                            try:
+                                self.process.kill()
+                            except Exception:
+                                pass
+                    else:
+                        self.logger.error(f"FFmpeg exited early with returncode={rc}; will remove partial files and retry")
+
+                    # cleanup any new files from the failed attempt
+                    try:
+                        after_files = set(os.listdir(dated_dir))
+                    except FileNotFoundError:
+                        after_files = set()
                     new_files = after_files - before_files
                     deleted = []
                     for fname in new_files:
@@ -174,13 +234,40 @@ class RTSPRecorder:
                                 deleted.append(fname)
                             except Exception as e:
                                 self.logger.warning(f"Failed removing file {fpath}: {e}")
+                    if deleted:
+                        self.logger.info(f"Removed {len(deleted)} failed/partial segment(s): {deleted}")
 
+                    # short backoff before restarting
+                    time.sleep(5)
+                    continue
+
+                # If we reach here, ffmpeg produced at least one segment. Now wait
+                # for the process to end (normal operation) or restart on error.
+                self.process.wait()
+
+                # process finished; collect stderr tail if any via implicit reader
+                rc = self.process.returncode
+                if rc != 0:
+                    self.logger.error(f"FFmpeg process failed (rc={rc}) — will remove newly created segments and restart")
+                    try:
+                        after_files = set(os.listdir(dated_dir))
+                    except FileNotFoundError:
+                        after_files = set()
+                    new_files = after_files - before_files
+                    deleted = []
+                    for fname in new_files:
+                        if fname.startswith('recording_') and fname.endswith(f'.{config.OUTPUT_FORMAT}'):
+                            fpath = os.path.join(dated_dir, fname)
+                            try:
+                                os.remove(fpath)
+                                deleted.append(fname)
+                            except Exception as e:
+                                self.logger.warning(f"Failed removing file {fpath}: {e}")
                     if deleted:
                         self.logger.info(f"Removed {len(deleted)} failed/partial segment(s): {deleted}")
                     else:
                         self.logger.info("No new segment files found to remove after failure.")
 
-                    # Wait a bit before retrying (permanent restart behavior)
                     time.sleep(5)
 
             except Exception as e:
