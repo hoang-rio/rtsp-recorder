@@ -27,8 +27,11 @@ class RTSPRecorder:
         logs_dir = Path('logs')
         logs_dir.mkdir(parents=True, exist_ok=True)
 
+        # Get log level from config
+        log_level = getattr(logging, config.LOG_LEVEL, logging.INFO)
+
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
+        logger.setLevel(log_level)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
         # Console handler
@@ -36,11 +39,25 @@ class RTSPRecorder:
         ch.setLevel(logging.INFO)
         ch.setFormatter(formatter)
 
-        # Rotating file handler: 10 MB max, 5 backups
+        # Rotating file handler with configurable size and backup count
         log_path = logs_dir / 'rtsp_recorder.log'
-        fh = RotatingFileHandler(str(log_path), maxBytes=10 * 1024 * 1024, backupCount=5)
+        fh = RotatingFileHandler(
+            str(log_path),
+            maxBytes=config.LOG_MAX_BYTES,
+            backupCount=config.LOG_BACKUP_COUNT
+        )
         fh.setLevel(logging.INFO)
         fh.setFormatter(formatter)
+
+        # Dedicated ffmpeg rotating file handler (captures full ffmpeg stderr)
+        ffmpeg_log_path = logs_dir / 'ffmpeg.log'
+        ffh = RotatingFileHandler(
+            str(ffmpeg_log_path),
+            maxBytes=config.LOG_MAX_BYTES,
+            backupCount=config.LOG_BACKUP_COUNT
+        )
+        ffh.setLevel(logging.DEBUG if config.ENABLE_FFMPEG_LOG else logging.CRITICAL)  # CRITICAL effectively disables logging
+        ffh.setFormatter(formatter)
 
         # Remove any existing handlers attached to root logger to avoid duplicates
         if logger.handlers:
@@ -48,6 +65,19 @@ class RTSPRecorder:
 
         logger.addHandler(ch)
         logger.addHandler(fh)
+
+        # Create a dedicated logger for ffmpeg output and attach the rotating handler.
+        ffmpeg_logger = logging.getLogger('ffmpeg')
+        # Avoid propagating to root logger so ffmpeg logs only go to their file
+        ffmpeg_logger.propagate = False
+        ffmpeg_logger.setLevel(logging.DEBUG)
+        # Remove existing handlers if any (prevents duplicates during reload)
+        if ffmpeg_logger.handlers:
+            ffmpeg_logger.handlers = []
+        ffmpeg_logger.addHandler(ffh)
+
+        # Expose ffmpeg logger on the instance for the stderr reader to use
+        self.ffmpeg_logger = ffmpeg_logger
 
         self.logger = logging.getLogger(__name__)
 
@@ -157,25 +187,34 @@ class RTSPRecorder:
                 f"filename pattern: {os.path.basename(output_pattern)} | "
                 f"first segment example: {example_path}"
             )
-            def _stream_ffmpeg_stderr(proc):
-                """Continuously read FFmpeg stderr and log it to the logger.
+            def _stream_ffmpeg_stderr(proc, ffmpeg_logger):
+                    """Continuously read FFmpeg stderr and log it to the logger.
 
-                This prevents the stderr buffer from filling and blocking the
-                FFmpeg process. Runs in a daemon thread.
-                """
-                try:
-                    for raw in iter(proc.stderr.readline, b''):
-                        if not raw:
-                            break
-                        try:
-                            line = raw.decode(errors='replace').rstrip()
-                        except Exception:
-                            line = str(raw)
-                        # Log FFmpeg output as DEBUG to keep main logs cleaner,
-                        # but include as INFO if you prefer.
-                        self.logger.debug(f"ffmpeg: {line}")
-                except Exception as e:
-                    self.logger.debug(f"stderr reader stopped: {e}")
+                    This prevents the stderr buffer from filling and blocking the
+                    FFmpeg process. Runs in a daemon thread.
+                    """
+                    try:
+                        for raw in iter(proc.stderr.readline, b''):
+                            if not raw:
+                                break
+                            try:
+                                line = raw.decode(errors='replace').rstrip()
+                            except Exception:
+                                line = str(raw)
+                            # Log FFmpeg output as DEBUG to keep main logs cleaner,
+                            # but include as INFO if you prefer.
+                            self.logger.debug(f"ffmpeg: {line}")
+                            # Also write full raw output to the ffmpeg log file so
+                            # we keep an unmodified copy of FFmpeg's stderr.
+                            try:
+                                if ffmpeg_logger:
+                                    # write the decoded line to the ffmpeg logger
+                                    ffmpeg_logger.debug(line)
+                            except Exception:
+                                # Don't let logging failures break the reader loop
+                                pass
+                    except Exception as e:
+                        self.logger.debug(f"stderr reader stopped: {e}")
 
             try:
                 # start ffmpeg process; send stdout to DEVNULL to avoid buffering
@@ -185,8 +224,8 @@ class RTSPRecorder:
                     stderr=subprocess.PIPE
                 )
 
-                # start background thread to drain stderr
-                t = threading.Thread(target=_stream_ffmpeg_stderr, args=(self.process,), daemon=True)
+                # start background thread to drain stderr and write to rotating ffmpeg log
+                t = threading.Thread(target=_stream_ffmpeg_stderr, args=(self.process, self.ffmpeg_logger), daemon=True)
                 t.start()
 
                 # Short startup check: ensure at least one segment file appears

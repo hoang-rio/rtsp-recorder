@@ -68,3 +68,18 @@ RTSP_TRANSPORT = os.environ.get('RTSP_TRANSPORT', '')
 # Option to disable audio stream entirely (saves CPU). Set DISABLE_AUDIO=1 in .env to enable.
 _disable_audio = os.environ.get('DISABLE_AUDIO', '0')
 DISABLE_AUDIO = _disable_audio.lower() in ('1', 'true', 'yes')
+
+# Logging configuration
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+ENABLE_FFMPEG_LOG = os.environ.get('ENABLE_FFMPEG_LOG', '1').lower() in ('1', 'true', 'yes')
+
+# Log rotation settings (default: 10MB max size, 5 backups)
+try:
+    LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(10 * 1024 * 1024)))  # 10 MB default
+except ValueError:
+    LOG_MAX_BYTES = 10 * 1024 * 1024
+
+try:
+    LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))
+except ValueError:
+    LOG_BACKUP_COUNT = 5
