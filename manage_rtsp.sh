@@ -93,7 +93,7 @@ do_start() {
   newpid=$!
   echo "$newpid" > "$PID_FILE"
   # small sleep to ensure process starts
-  sleep 0.2
+  sleep 1
   if is_running "$newpid"; then
     log "Recorder started (pid=$newpid). stdout/stderr -> $OUT_LOG"
     return 0
@@ -139,7 +139,7 @@ do_status() {
   pid=$(find_pid)
   if [ -n "$pid" ]; then
     log "Recorder is running (pid=$pid)."
-    ps -p "$pid" -o pid,cmd --no-headers || true
+    #ps -p "$pid" -o pid,cmd --no-headers || true
     return 0
   else
     log "Recorder is not running."
