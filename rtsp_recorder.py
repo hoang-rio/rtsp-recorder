@@ -73,10 +73,16 @@ class RTSPRecorder:
         return os.path.join(dated_dir, f'recording_%H%M%S.{config.OUTPUT_FORMAT}')
 
     def build_ffmpeg_command(self, output_file):
-        """Build FFmpeg command with configured settings"""
+        """Build FFmpeg command with optimized settings for low CPU usage"""
         command = [
             config.FFMPEG_BINARY,
             '-y',  # Overwrite output files
+            # Reduce probe size and analyzeduration to speed up stream start and lower CPU
+            '-analyzeduration', '1M',
+            '-probesize', '1M',
+            # Low-latency flags
+            '-fflags', '+nobuffer',
+            '-flags', 'low_delay',
         ]
 
         # Add RTSP transport if configured (must come before -i)
@@ -88,7 +94,7 @@ class RTSPRecorder:
             '-i', config.RTSP_URL,
         ])
 
-        # Add hardware acceleration if configured
+        # Add hardware acceleration if configured (optional, but often not needed on low-end CPUs)
         if config.HW_ACCELERATION:
             if config.HW_ACCELERATION == 'auto':
                 if sys.platform == 'darwin':
@@ -103,7 +109,13 @@ class RTSPRecorder:
         # Output options
         command.extend([
             '-c:v', 'copy',  # Copy video stream without re-encoding
-            '-c:a', 'copy',   # Copy audio stream without re-encoding
+        ])
+        # Optionally disable audio to save CPU
+        if getattr(config, 'DISABLE_AUDIO', False):
+            command.append('-an')
+        else:
+            command.extend(['-c:a', 'copy'])
+        command.extend([
             '-f', 'segment',  # Enable segmentation
             '-segment_time', str(config.SEGMENT_DURATION),
             '-strftime', '1',  # Enable strftime for segment names
