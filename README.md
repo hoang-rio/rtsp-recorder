@@ -19,27 +19,19 @@ A Python script for recording RTSP streams from security cameras using FFmpeg.
 ## Configuration
 
 Configuration is read from environment variables. To keep secrets out of git,
-create a `.env` file in the project root (this file is ignored by `.gitignore`).
+copy `.env.example` to `.env` in the project root (`.env` is ignored by `.gitignore`).
 The included `config.py` will automatically load `.env` if present.
 
-Example `.env`:
-
-```
-# Local config for RTSP recorder - KEEP THIS FILE OUT OF GIT
-FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg
-RTSP_URL=rtsp://username:password@camera/stream
-OUTPUT_DIR=recordings
-SEGMENT_DURATION=900
-OUTPUT_FORMAT=mp4
-HW_ACCELERATION=
-```
+Available configuration options:
 
 - `FFMPEG_BINARY`: path to the ffmpeg executable
 - `RTSP_URL`: your camera RTSP URL (include auth if required)
 - `OUTPUT_DIR`: base output directory
 - `SEGMENT_DURATION`: segment length in seconds (integer)
-- `OUTPUT_FORMAT`: output container/extension (e.g. `mp4`, `mkv`)
+- `OUTPUT_FORMAT`: output container/extension (defaults to `mkv`)
 - `HW_ACCELERATION`: optional; values like `videotoolbox`, `nvenc`, `qsv`, `auto`, or empty
+- `RTSP_TRANSPORT`: optional; set to `tcp` or `udp` for specific transport
+- `DISABLE_AUDIO`: set to `1`, `true`, or `yes` to disable audio and save CPU
 
 You can alternatively export these variables in your shell instead of using
 `.env`.
@@ -56,7 +48,11 @@ brew install ffmpeg
 sudo apt-get update && sudo apt-get install ffmpeg
 ```
 
-2. Create or edit `.env` in the project root and set your values.
+2. Copy `.env.example` to `.env` in the project root and configure your values:
+```bash
+cp .env.example .env
+nano .env  # or use your preferred editor
+```
 
 3. Run the recorder:
 

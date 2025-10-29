@@ -2,19 +2,11 @@
 Configuration loader for RTSP recorder.
 
 This module reads configuration from environment variables. To keep
-secrets out of git, create a `.env` file in the project root (this file
-is ignored by default — see `.gitignore`) with the following keys:
+secrets out of git, create a `.env` file in the project root based on
+the `.env.example` template (see `.gitignore` for details on keeping
+secrets secure).
 
-FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg
-RTSP_URL=rtsp://username:password@camera/stream
-OUTPUT_DIR=recordings
-SEGMENT_DURATION=900
-OUTPUT_FORMAT=mkv
-HW_ACCELERATION=auto
-RTSP_TRANSPORT=
-DISABLE_AUDIO=1  # Set to 1, true, or yes to disable audio and save CPU
-
-The loader below will read `.env` (if present) and then expose Python
+The loader below will read `.env` (if present) and expose Python
 variables with safe defaults.
 """
 
