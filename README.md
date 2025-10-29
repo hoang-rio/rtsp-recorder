@@ -122,4 +122,4 @@ camera stream or FFmpeg fails.
 
 ## License
 
-This project is provided as-is. Modify and adapt to your needs.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
