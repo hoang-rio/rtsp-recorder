@@ -139,7 +139,7 @@ do_status() {
   pid=$(find_pid)
   if [ -n "$pid" ]; then
     log "Recorder is running (pid=$pid)."
-    #ps -p "$pid" -o pid,cmd --no-headers || true
+    ps | grep "$pid" | grep -v grep || true
     return 0
   else
     log "Recorder is not running."
