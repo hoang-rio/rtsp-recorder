@@ -111,7 +111,9 @@ class RTSPRecorder:
             '-analyzeduration', '1M',
             '-probesize', '1M',
             # Low-latency flags
-            '-fflags', '+nobuffer',
+            '-flags', '+nobuffer',
+            '-flags', '+discard',
+            '-flags', '+drop_frame',
             '-flags', 'low_delay',
         ]
 
