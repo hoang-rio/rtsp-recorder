@@ -9,8 +9,10 @@ FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg
 RTSP_URL=rtsp://username:password@camera/stream
 OUTPUT_DIR=recordings
 SEGMENT_DURATION=900
-OUTPUT_FORMAT=mp4
+OUTPUT_FORMAT=mkv
 HW_ACCELERATION=auto
+RTSP_TRANSPORT=
+DISABLE_AUDIO=1  # Set to 1, true, or yes to disable audio and save CPU
 
 The loader below will read `.env` (if present) and then expose Python
 variables with safe defaults.
@@ -62,7 +64,7 @@ try:
 except ValueError:
 	SEGMENT_DURATION = 900
 
-OUTPUT_FORMAT = os.environ.get('OUTPUT_FORMAT', 'mp4')
+OUTPUT_FORMAT = os.environ.get('OUTPUT_FORMAT', 'mkv')
 
 # HW_ACCELERATION: treat empty string as None
 _hw = os.environ.get('HW_ACCELERATION', '')
@@ -70,3 +72,7 @@ HW_ACCELERATION = _hw if _hw else None
 
 # RTSP transport option: set to 'tcp', 'udp', or leave empty to omit
 RTSP_TRANSPORT = os.environ.get('RTSP_TRANSPORT', '')
+
+# Option to disable audio stream entirely (saves CPU). Set DISABLE_AUDIO=1 in .env to enable.
+_disable_audio = os.environ.get('DISABLE_AUDIO', '0')
+DISABLE_AUDIO = _disable_audio.lower() in ('1', 'true', 'yes')
