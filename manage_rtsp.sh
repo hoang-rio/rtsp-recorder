@@ -23,7 +23,6 @@ PYTHON_CMD="${PYTHON:-python3}"
 TIMEOUT=${TIMEOUT:-10}
 LOG_DIR="logs"
 LAUNCHER_LOG="$LOG_DIR/launcher.log"
-OUT_LOG="$LOG_DIR/rtsp_recorder.out"
 PID_FILE=".rtsp_recorder.pid"
 
 mkdir -p "$LOG_DIR"
@@ -89,16 +88,16 @@ do_start() {
 
   START_CMD="$PYTHON_CMD $(pwd)/$SCRIPT_NAME"
   log "Starting recorder: $START_CMD"
-  nohup $START_CMD >> "$OUT_LOG" 2>&1 &
+  nohup $START_CMD >> /dev/null 2>&1 &
   newpid=$!
   echo "$newpid" > "$PID_FILE"
   # small sleep to ensure process starts
   sleep 1
   if is_running "$newpid"; then
-    log "Recorder started (pid=$newpid). stdout/stderr -> $OUT_LOG"
+    log "Recorder started (pid=$newpid)."
     return 0
   else
-    log "Failed to start recorder; check $OUT_LOG and $LAUNCHER_LOG"
+    log "Failed to start recorder; check $LAUNCHER_LOG"
     return 1
   fi
 }
