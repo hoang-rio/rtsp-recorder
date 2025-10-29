@@ -32,6 +32,10 @@ Available configuration options:
 - `HW_ACCELERATION`: optional; values like `videotoolbox`, `nvenc`, `qsv`, `auto`, or empty
 - `RTSP_TRANSPORT`: optional; set to `tcp` or `udp` for specific transport
 - `DISABLE_AUDIO`: set to `1`, `true`, or `yes` to disable audio and save CPU
+ - `LOG_LEVEL`: set the main application log level. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (defaults to `INFO`)
+ - `ENABLE_FFMPEG_LOG`: set to `0` to disable writing FFmpeg stderr to `logs/ffmpeg.log` (defaults to enabled `1`)
+ - `LOG_MAX_BYTES`: maximum bytes per rotated log file (default: `10485760`, 10MB)
+ - `LOG_BACKUP_COUNT`: number of rotated log files to keep (default: `5`)
 
 You can alternatively export these variables in your shell instead of using
 `.env`.
@@ -62,6 +66,47 @@ python3 rtsp_recorder.py
 
 The script runs in the foreground. Use your process supervisor (systemd,
 launchd, tmux/screen) for long-running background operation.
+
+Managing the recorder with the included helper script
+----------------------------------------------------
+
+A small helper script, `manage_rtsp.sh`, is included at the project root to
+make starting, stopping and restarting the recorder easier during
+development or when running manually.
+
+Usage:
+
+```
+./manage_rtsp.sh start    # start the recorder in the background
+./manage_rtsp.sh stop     # request a clean shutdown (SIGTERM); escalates to SIGKILL after a timeout
+./manage_rtsp.sh restart  # stop then start
+./manage_rtsp.sh status   # show whether the recorder is running
+```
+
+Behavior and files:
+
+- The helper writes a PID file at `.rtsp_recorder.pid` when it starts the
+  recorder and prefers that PID file for subsequent stop/status actions.
+- Launcher actions are appended to `logs/launcher.log` for auditing.
+- The recorder's stdout/stderr (the Python process) is redirected to
+  `logs/rtsp_recorder.out` when started via the helper script.
+- The helper will try to perform a clean shutdown (SIGTERM) and wait up to
+  `TIMEOUT` seconds (default 10). You can override `TIMEOUT` and `PYTHON` via
+  the environment when invoking the helper, for example:
+
+```
+PYTHON=/usr/local/bin/python3.12 TIMEOUT=30 ./manage_rtsp.sh restart
+```
+
+Notes:
+
+- The helper uses a combination of the PID file and `pgrep -f` as a fallback
+  to find a running instance; this makes it robust for typical single-instance
+  use but not suitable for running multiple independent instances with the
+  same script name. If you need per-instance control, consider running via a
+  process supervisor (launchd/systemd) or we can extend the helper to match
+  absolute paths.
+
 
 ## Output layout
 
