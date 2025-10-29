@@ -18,6 +18,7 @@ class RTSPRecorder:
         self.setup_output_directory()
         self.process = None
         self.running = True
+        self.clean_shutdown = False
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
@@ -247,7 +248,8 @@ class RTSPRecorder:
 
                 # process finished; collect stderr tail if any via implicit reader
                 rc = self.process.returncode
-                if rc != 0:
+                if rc != 0 and not self.clean_shutdown:
+                    # Only clean up segments if this was an actual error, not a clean shutdown
                     self.logger.error(f"FFmpeg process failed (rc={rc}) — will remove newly created segments and restart")
                     try:
                         after_files = set(os.listdir(dated_dir))
@@ -267,6 +269,8 @@ class RTSPRecorder:
                         self.logger.info(f"Removed {len(deleted)} failed/partial segment(s): {deleted}")
                     else:
                         self.logger.info("No new segment files found to remove after failure.")
+                elif self.clean_shutdown:
+                    self.logger.info("Clean shutdown requested, keeping recorded segments")
 
                     time.sleep(5)
 
@@ -279,6 +283,8 @@ class RTSPRecorder:
         self.logger.info("Shutdown signal received, stopping recorder...")
         self.running = False
         if self.process:
+            # Signal a clean shutdown to avoid triggering error cleanup
+            self.clean_shutdown = True
             self.process.terminate()
             try:
                 self.process.wait(timeout=5)
