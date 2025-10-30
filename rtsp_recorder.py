@@ -236,7 +236,7 @@ class RTSPRecorder:
                     # if process has exited quickly, break and handle below
                     if self.process.poll() is not None:
                         break
-                    time.sleep(1)
+                    time.sleep(0.1)
 
                 if not started_ok:
                     # Either no files were created or process exited early.
@@ -280,7 +280,7 @@ class RTSPRecorder:
                         self.logger.info(f"Removed {len(deleted)} failed/partial segment(s): {deleted}")
 
                     # short backoff before restarting
-                    time.sleep(5)
+                    time.sleep(0.1)
                     continue
 
                 # If we reach here, ffmpeg produced at least one segment. Now wait
