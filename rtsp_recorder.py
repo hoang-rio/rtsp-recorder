@@ -100,7 +100,7 @@ class RTSPRecorder:
     def get_output_filename(self):
         """Generate output filename pattern with date-based directory structure"""
         dated_dir = self.get_dated_output_directory()
-        return os.path.join(dated_dir, f'recording_%H%M%S.{config.OUTPUT_FORMAT}')
+        return os.path.join(dated_dir, datetime.now().strftime(f'recording_%H%M%S.{config.OUTPUT_FORMAT}'))
 
     def build_ffmpeg_command(self, output_file):
         """Build FFmpeg command with optimized settings for low CPU usage"""
@@ -115,6 +115,7 @@ class RTSPRecorder:
             '-flags', '+discard',
             '-flags', '+drop_frame',
             '-flags', 'low_delay',
+            '-nostdin'
         ]
 
         # Add RTSP transport if configured (must come before -i)
@@ -148,11 +149,8 @@ class RTSPRecorder:
         else:
             command.extend(['-c:a', 'copy'])
         command.extend([
-            '-f', 'segment',  # Enable segmentation
-            '-segment_time', str(config.SEGMENT_DURATION),
-            '-strftime', '1',  # Enable strftime for segment names
+            '-t', str(config.SEGMENT_DURATION),
             '-reset_timestamps', '1',  # Reset timestamps at the beginning of each segment
-            '-segment_format', config.OUTPUT_FORMAT,  # Set segment format
             output_file
         ])
 
@@ -172,22 +170,12 @@ class RTSPRecorder:
             except FileNotFoundError:
                 before_files = set()
 
-            output_pattern = os.path.join(dated_dir, f'recording_%H%M%S.{config.OUTPUT_FORMAT}')
-            command = self.build_ffmpeg_command(output_pattern)
-
-            # Prepare a human-friendly example filename for logging by expanding
-            # the strftime tokens with current time (FFmpeg will use its own times
-            # when creating actual segments).
-            try:
-                example_basename = datetime.now().strftime(os.path.basename(output_pattern))
-                example_path = os.path.join(dated_dir, example_basename)
-            except Exception:
-                example_path = output_pattern
+            output_file = self.get_output_filename()
+            command = self.build_ffmpeg_command(output_file)
 
             self.logger.info(
                 f"Starting recording into directory: {dated_dir} | "
-                f"filename pattern: {os.path.basename(output_pattern)} | "
-                f"first segment example: {example_path}"
+                f"filename: {os.path.basename(output_file)}"
             )
             def _stream_ffmpeg_stderr(proc, ffmpeg_logger):
                     """Continuously read FFmpeg stderr and log it to the logger.
