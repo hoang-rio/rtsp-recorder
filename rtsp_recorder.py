@@ -285,7 +285,7 @@ class RTSPRecorder:
 
                 # If we reach here, ffmpeg produced at least one segment. Now wait
                 # for the process to end (normal operation) or restart on error.
-                self.process.wait()
+                self.process.wait(timeout=config.SEGMENT_DURATION + 0.5)
 
                 # process finished; collect stderr tail if any via implicit reader
                 rc = self.process.returncode
