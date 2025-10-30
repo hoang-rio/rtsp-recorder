@@ -314,7 +314,11 @@ class RTSPRecorder:
                     self.logger.info("Clean shutdown requested, keeping recorded segments")
 
                     time.sleep(5)
-
+            except subprocess.TimeoutExpired:
+                self.logger.error(f"Timeout for process ({config.SEGMENT_DURATION + 0.5}s) expired. Terminating process...")
+                self.process.terminate()  # Send SIGTERM
+                self.process.wait()  # Wait for the process to actually terminate
+                self.logger.info("Process terminated.")
             except Exception as e:
                 self.logger.error(f"Error during recording: {str(e)}")
                 time.sleep(5)  # Wait before retrying
