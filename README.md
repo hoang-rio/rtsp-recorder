@@ -2,6 +2,10 @@
 
 A Python script for recording RTSP streams from security cameras using FFmpeg.
 
+## Disclaimer
+
+Most Line of Code in this repository powered by Github Copilot
+
 ## Features
 
 - Configurable FFmpeg binary path and RTSP URL via environment / `.env`
@@ -32,10 +36,10 @@ Available configuration options:
 - `HW_ACCELERATION`: optional; values like `videotoolbox`, `nvenc`, `qsv`, `auto`, or empty
 - `RTSP_TRANSPORT`: optional; set to `tcp` or `udp` for specific transport
 - `DISABLE_AUDIO`: set to `1`, `true`, or `yes` to disable audio and save CPU
- - `LOG_LEVEL`: set the main application log level. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (defaults to `INFO`)
- - `ENABLE_FFMPEG_LOG`: set to `0` to disable writing FFmpeg stderr to `logs/ffmpeg.log` (defaults to enabled `1`)
- - `LOG_MAX_BYTES`: maximum bytes per rotated log file (default: `10485760`, 10MB)
- - `LOG_BACKUP_COUNT`: number of rotated log files to keep (default: `5`)
+- `LOG_LEVEL`: set the main application log level. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (defaults to `INFO`)
+- `ENABLE_FFMPEG_LOG`: set to `0` to disable writing FFmpeg stderr to `logs/ffmpeg.log` (defaults to enabled `1`)
+- `LOG_MAX_BYTES`: maximum bytes per rotated log file (default: `10485760`, 10MB)
+- `LOG_BACKUP_COUNT`: number of rotated log files to keep (default: `5`)
 
 You can alternatively export these variables in your shell instead of using
 `.env`.
@@ -89,7 +93,7 @@ Behavior and files:
   recorder and prefers that PID file for subsequent stop/status actions.
 - Launcher actions are appended to `logs/launcher.log` for auditing.
 - The recorder's stdout/stderr (the Python process) is redirected to
-  `logs/rtsp_recorder.out` when started via the helper script.
+  `logs/rtsp_recorder.log` when started via the helper script.
 - The helper will try to perform a clean shutdown (SIGTERM) and wait up to
   `TIMEOUT` seconds (default 10). You can override `TIMEOUT` and `PYTHON` via
   the environment when invoking the helper, for example:
@@ -121,7 +125,7 @@ recordings/
         recording_144045.mkv    # next segment (after SEGMENT_DURATION)
 ```
 
-- Filenames are created using an `strftime` pattern so FFmpeg will substitute
+- Filenames are created using an `strftime` pattern using python date
   the timestamp when it writes each segment (the script shows an example
   expanded name in the start log).
 - Each segment will be approximately `SEGMENT_DURATION` seconds long (the
@@ -131,7 +135,7 @@ recordings/
 
 - Logs are written to `logs/rtsp_recorder.log` with rotation: max 10 MB per
   file and up to 5 backups.
-- The script also logs to the console.
+- The script also logs to the console when direct run with `python3 rtsp_recorder.py`
 
 ## Behavior on failure
 
