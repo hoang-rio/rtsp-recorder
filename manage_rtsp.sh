@@ -20,7 +20,7 @@ set -euo pipefail
 # Configuration (can be overridden in the environment)
 SCRIPT_NAME="rtsp_recorder.py"
 PYTHON_CMD="${PYTHON:-python3}"
-TIMEOUT=${TIMEOUT:-10}
+TIMEOUT=${TIMEOUT:-20}
 LOG_DIR="logs"
 LAUNCHER_LOG="$LOG_DIR/launcher.log"
 PID_FILE=".rtsp_recorder.pid"
